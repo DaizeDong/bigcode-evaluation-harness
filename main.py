@@ -1,6 +1,6 @@
-import os
 import fnmatch
 import json
+import os
 import warnings
 
 import datasets
@@ -11,12 +11,30 @@ from transformers import (
     AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
-    HfArgumentParser,
+    HfArgumentParser, AutoConfig, AutoModel,
 )
 
 from bigcode_eval.arguments import EvalArguments
 from bigcode_eval.evaluator import Evaluator
+from bigcode_eval.models_extra.llama_mod.configuration_llama_mod import LlamaMoDConfig
+from bigcode_eval.models_extra.llama_mod.configuration_llama_mod_exattn import LlamaMoDExAttnConfig
+from bigcode_eval.models_extra.llama_mod.modeling_llama_mod import LlamaMoDModel, LlamaMoDForCausalLM
+from bigcode_eval.models_extra.llama_mod.modeling_llama_mod_exattn import LlamaMoDExAttnModel, LlamaMoDExAttnForCausalLM
+from bigcode_eval.models_extra.mistral_mod.configuration_mistral_mod_exattn import MistralMoDExAttnConfig
+from bigcode_eval.models_extra.mistral_mod.modeling_mistral_mod_exattn import MistralMoDExAttnModel, MistralMoDExAttnForCausalLM
 from bigcode_eval.tasks import ALL_TASKS
+
+AutoConfig.register("llama_mod", LlamaMoDConfig)
+AutoConfig.register("llama_mod_exattn", LlamaMoDExAttnConfig)
+AutoConfig.register("mistral_mod_exattn", MistralMoDExAttnConfig)
+
+AutoModel.register(LlamaMoDConfig, LlamaMoDModel)
+AutoModel.register(LlamaMoDExAttnConfig, LlamaMoDExAttnModel)
+AutoModel.register(MistralMoDExAttnConfig, MistralMoDExAttnModel)
+
+AutoModelForCausalLM.register(LlamaMoDConfig, LlamaMoDForCausalLM)
+AutoModelForCausalLM.register(LlamaMoDExAttnConfig, LlamaMoDExAttnForCausalLM)
+AutoModelForCausalLM.register(MistralMoDExAttnConfig, MistralMoDExAttnForCausalLM)
 
 
 class MultiChoice:
@@ -276,7 +294,7 @@ def main():
             print("Loading model in 4bit")
             model_kwargs["load_in_4bit"] = args.load_in_4bit
             model_kwargs["torch_dtype"] = torch.float16
-            model_kwargs["bnb_4bit_compute_dtype"] = torch.float16            
+            model_kwargs["bnb_4bit_compute_dtype"] = torch.float16
             model_kwargs["device_map"] = {"": accelerator.process_index}
         else:
             print(f"Loading model in {args.precision}")
@@ -325,7 +343,7 @@ def main():
                 revision=args.revision,
                 trust_remote_code=args.trust_remote_code,
                 token=args.use_auth_token,
-                padding_side="left",  
+                padding_side="left",
             )
         else:
             # used by default for most models
@@ -335,7 +353,7 @@ def main():
                 trust_remote_code=args.trust_remote_code,
                 token=args.use_auth_token,
                 truncation_side="left",
-                padding_side="right",  
+                padding_side="right",
             )
         if not tokenizer.eos_token:
             if tokenizer.bos_token:
@@ -345,7 +363,7 @@ def main():
                 raise ValueError("No eos_token or bos_token found")
         try:
             tokenizer.pad_token = tokenizer.eos_token
-            
+
         # Some models like CodeGeeX2 have pad_token as a read-only property
         except AttributeError:
             print("Not setting pad_token to eos_token")
@@ -363,8 +381,8 @@ def main():
         evaluator = Evaluator(accelerator, model, tokenizer, args)
 
         if (
-            args.load_generations_intermediate_paths
-            and len(args.load_generations_intermediate_paths) != len(task_names)
+                args.load_generations_intermediate_paths
+                and len(args.load_generations_intermediate_paths) != len(task_names)
         ):
             raise ValueError(
                 "If passing --load_generations_intermediate_paths, \

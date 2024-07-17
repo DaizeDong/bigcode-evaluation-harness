@@ -168,3 +168,5 @@ evaluation*.json
 generations*.json
 
 playground/
+/logs_mod/
+/results_mod/
